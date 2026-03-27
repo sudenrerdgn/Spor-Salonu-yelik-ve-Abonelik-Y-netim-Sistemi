@@ -1,3 +1,4 @@
+Gemini
 <!DOCTYPE html>
 <html lang="tr">
 
@@ -31,6 +32,9 @@
                     </div>
                 </div>
                 <div style="display:flex;gap:12px;align-items:center;">
+                    <div class="theme-toggle" onclick="toggleTheme()" title="Tema Değiştir">
+                        <i class="fas fa-sun" id="themeIconLanding"></i>
+                    </div>
                     <button class="btn-ghost" onclick="showLoginModal()">Giriş Yap</button>
                     <button class="btn-primary" onclick="showRegisterModal()"><i class="fas fa-user-plus"></i>
                         Kaydol</button>
@@ -230,6 +234,14 @@
             </a>
 
             <div class="sidebar-footer">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                    <div class="theme-toggle" onclick="toggleTheme()" title="Tema Değiştir"
+                        style="width:36px;height:36px;font-size:14px;border-radius:10px;">
+                        <i class="fas fa-sun" id="themeIconSidebar"></i>
+                    </div>
+                    <span style="font-size:12px;color:var(--text-muted);font-weight:500;" id="themeLabel">Aydınlık
+                        Mod</span>
+                </div>
                 <div class="admin-card">
                     <div class="admin-avatar" id="sidebarAvatar">AY</div>
                     <div>
@@ -253,7 +265,7 @@
                 <div class="topbar">
                     <div class="topbar-left">
                         <h1 id="dashboardWelcome">Hoş Geldiniz, Admin 👋</h1>
-                        <p id="currentDateTime">Bugün, 13 Mart 2026 — Cuma</p>
+                        <p>Bugün, 13 Mart 2026 — Cuma</p>
                     </div>
                     <div class="topbar-right">
                         <div class="search-bar">
@@ -261,12 +273,13 @@
                             <input type="text" placeholder="Üye ara..." id="searchInput"
                                 oninput="filterMembers(this.value)">
                         </div>
+                        <div class="theme-toggle" onclick="toggleTheme()" title="Tema Değiştir">
+                            <i class="fas fa-sun" id="themeIconTopbar"></i>
+                        </div>
                         <div class="icon-btn"><i class="fas fa-bell"></i>
                             <div class="dot"></div>
                         </div>
-                        <button class="btn-primary" onclick="openModal()">
-                            <i class="fas fa-plus"></i> Yeni Üye
-                        </button>
+                            <!-- UI request: remove "Yeni Üye" button -->
                     </div>
                 </div>
 
@@ -285,7 +298,7 @@
                             <div class="stat-icon"><i class="fas fa-turkish-lira-sign"></i></div>
                             <div class="stat-change up"><i class="fas fa-arrow-up" style="font-size:9px"></i> 8%</div>
                         </div>
-                        <div class="stat-value">₺4,549</div>
+                        <div class="stat-value" id="monthlyIncome">₺0</div>
                         <div class="stat-label">Bu Ay Gelir</div>
                     </div>
                     <div class="stat-card c3">
@@ -394,27 +407,22 @@
                                 <div class="card-title">Haftalık Ders Programı 📅</div>
                                 <div class="card-subtitle">Bu haftaki tüm dersler ve saatler</div>
                             </div>
-                            <div class="card-action" onclick="navigateTo('dersler',document.querySelector('[data-page=dersler]'))">Rezervasyon Yap <i class="fas fa-chevron-right" style="font-size:10px"></i></div>
+                            <div class="card-action"
+                                onclick="navigateTo('dersler',document.querySelector('[data-page=dersler]'))">
+                                Rezervasyon Yap <i class="fas fa-chevron-right" style="font-size:10px"></i></div>
                         </div>
                         <div id="uyeWeeklyCalendar" style="overflow-x:auto;"></div>
                     </div>
-                    <!-- Aktivite Grafiği (Dairesel) -->
+                    <!-- Aktivite Grafiği -->
                     <div class="glass-card">
                         <div class="card-header">
                             <div>
-                                <div class="card-title">Haftalık Aktivite 🏃</div>
-                                <div class="card-subtitle">Bu haftaki antrenman dağılımın</div>
+                                <div class="card-title">Haftalık Aktivite</div>
+                                <div class="card-subtitle">Bu haftaki antrenman geçmişin</div>
                             </div>
                         </div>
-                        <div class="uye-aktivite-doughnut-wrapper">
-                            <div class="uye-aktivite-chart-area">
-                                <canvas id="uyeAktiviteChart"></canvas>
-                                <div class="uye-aktivite-center-label" id="uyeAktiviteCenterLabel">
-                                    <div class="uye-aktivite-center-value">245</div>
-                                    <div class="uye-aktivite-center-text">dakika</div>
-                                </div>
-                            </div>
-                            <div class="uye-aktivite-legend" id="uyeAktiviteLegend"></div>
+                        <div class="chart-wrapper" style="height:220px;">
+                            <canvas id="uyeAktiviteChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -434,7 +442,7 @@
                                 <option value="pasif">Pasif</option>
                                 <option value="suresi_doldu">Süresi Doldu</option>
                             </select>
-                            <div class="card-action" onclick="openModal()"><i class="fas fa-plus"></i> Ekle</div>
+                            <!-- UI request: remove "Ekle" button -->
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -483,8 +491,7 @@
                             <div class="card-title">Hızlı İşlemler</div>
                         </div>
                         <div class="quick-actions">
-                            <div class="qa-btn a" onclick="openModal()"><i class="fas fa-user-plus"></i><span>Üye
-                                    Ekle</span></div>
+                            <!-- UI request: remove "Üye Ekle" quick action -->
                             <div class="qa-btn b" onclick="showToast('Ödeme alındı! ✓')"><i
                                     class="fas fa-credit-card"></i><span>Ödeme Al</span></div>
                             <div class="qa-btn c" onclick="showToast('Abonelik uzatıldı ✓')"><i
@@ -541,7 +548,9 @@
                                 <div class="card-title">Haftalık Ders Programım 📅</div>
                                 <div class="card-subtitle">Bu hafta verdiğin dersler ve saatler</div>
                             </div>
-                            <div class="card-action" onclick="navigateTo('dersler',document.querySelector('[data-page=dersler]'))">Tüm Dersler <i class="fas fa-chevron-right" style="font-size:10px"></i></div>
+                            <div class="card-action"
+                                onclick="navigateTo('dersler',document.querySelector('[data-page=dersler]'))">Tüm
+                                Dersler <i class="fas fa-chevron-right" style="font-size:10px"></i></div>
                         </div>
                         <div id="antrenorWeeklyCalendar" style="overflow-x:auto;"></div>
                     </div>
@@ -582,7 +591,7 @@
                     <div class="topbar-right">
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" placeholder="Üye ara..."
                                 id="uyelerSearch" oninput="filterUyelerPage(this.value)"></div>
-                        <button class="btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> Yeni Üye</button>
+                        <!-- UI request: remove "Yeni Üye" button -->
                     </div>
                 </div>
                 <div class="stats-grid">
@@ -1355,13 +1364,6 @@
                         type="checkbox" id="rememberMe" style="accent-color:var(--accent-purple);"> Beni Hatırla</label>
                 <a href="#" onclick="event.preventDefault();closeLoginModal();showForgotModal()"
                     style="font-size:12px;color:var(--accent-cyan);text-decoration:none;">Şifremi Unuttum</a>
-            </div>
-            <div class="form-field" style="margin-bottom:20px;"><label>Giriş Türü</label>
-                <select id="loginRole">
-                    <option value="admin">👑 Admin</option>
-                    <option value="uye">👤 Üye</option>
-                    <option value="antrenor">🏋️ Antrenör</option>
-                </select>
             </div>
             <div class="modal-actions" style="flex-direction:column;gap:10px;">
                 <button class="btn-primary" style="width:100%;justify-content:center;" onclick="handleLogin()"><i

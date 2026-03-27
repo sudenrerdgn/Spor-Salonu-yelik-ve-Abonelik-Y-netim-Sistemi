@@ -21,8 +21,8 @@ const avatarColors = [
   'linear-gradient(135deg,#fbbf24,#f472b6)',
 ];
 
-// ─── ÜYE LİSTESİ (demo) ───
-let members = [
+// ─── ÜYE LİSTESİ (localStorage destekli) ───
+const defaultMembers = [
   { id:1, name:'Ahmet Yılmaz',   email:'ahmet@mail.com',  uyelikNo:'FZ-2026-001', plan:'platinum', start:'2026-01-15', end:'2027-01-15', payment:'₺850', status:'aktif',        odemeYontemi:'kredi_karti' },
   { id:2, name:'Fatma Kaya',     email:'fatma@mail.com',  uyelikNo:'FZ-2026-002', plan:'gold',     start:'2026-02-01', end:'2026-08-01', payment:'₺550', status:'aktif',        odemeYontemi:'nakit' },
   { id:3, name:'Can Öztürk',     email:'can@mail.com',    uyelikNo:'FZ-2026-003', plan:'silver',   start:'2026-01-01', end:'2026-04-01', payment:'₺350', status:'aktif',        odemeYontemi:'havale' },
@@ -32,8 +32,13 @@ let members = [
   { id:7, name:'Murat Çelik',    email:'murat@mail.com',  uyelikNo:'FZ-2026-007', plan:'silver',   start:'2026-02-15', end:'2026-05-15', payment:'₺350', status:'aktif',        odemeYontemi:'kredi_karti' },
   { id:8, name:'Ayşe Yıldız',    email:'ayse@mail.com',   uyelikNo:'FZ-2026-008', plan:'platinum', start:'2026-01-20', end:'2027-01-20', payment:'₺850', status:'aktif',        odemeYontemi:'kredi_karti' },
 ];
+let members = JSON.parse(localStorage.getItem('fitzone_members')) || [...defaultMembers];
 
 let filtered = [...members];
+
+// ─── localStorage kaydetme yardımcıları ───
+function saveMembers()         { localStorage.setItem('fitzone_members', JSON.stringify(members)); }
+function saveRegisteredUsers() { localStorage.setItem('fitzone_users', JSON.stringify(registeredUsers)); }
 
 // ═══════════════════════════════════════════
 // ÜYE TABLOSU
@@ -45,37 +50,38 @@ function getInitials(name) {
 
 function renderMembers(data) {
   const tbody = document.getElementById('membersTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
-  const statusLabel = { aktif:'Aktif', pasif:'Pasif', iptal:'İptal', suresi_doldu:'Süresi Doldu' };
+  const statusLabel = { aktif:'Aktif', pasif:'Pasif', iptal:'İptal', suresi_doldu:'Süresi Doldu', askida:'Askıda' };
   data.forEach((m, idx) => {
-    const p = planColors[m.plan];
     const color = avatarColors[idx % avatarColors.length];
+    const name = m.name || (m.ad + ' ' + m.soyad);
+    const durum = m.status || m.durum || 'aktif';
     tbody.innerHTML += `
       <tr>
         <td>
           <div class="member-info">
-            <div class="m-avatar" style="background:${color}">${getInitials(m.name)}</div>
+            <div class="m-avatar" style="background:${color}">${getInitials(name)}</div>
             <div>
-              <div class="m-name">${m.name}</div>
+              <div class="m-name">${name}</div>
               <div class="m-email">${m.email}</div>
             </div>
           </div>
         </td>
-        <td style="color:var(--text-muted);font-size:12px;font-weight:600">${m.uyelikNo}</td>
-        <td><span class="plan-badge ${p.class}">${p.icon} ${m.plan.charAt(0).toUpperCase()+m.plan.slice(1)}</span></td>
-        <td style="color:var(--text-muted);font-size:12px">${m.start}</td>
-        <td style="color:var(--text-muted);font-size:12px">${m.end}</td>
-        <td style="font-family:'Clash Display',sans-serif;font-weight:700;color:#4ade80">${m.payment}</td>
-        <td><span class="status-dot ${m.status}">${statusLabel[m.status] || m.status}</span></td>
+        <td style="color:var(--text-muted);font-size:12px">${m.telefon || ''}</td>
+        <td style="color:var(--text-muted);font-size:12px">${m.rol || ''}</td>
+        <td><span class="status-dot ${durum}">${statusLabel[durum] || durum}</span></td>
+        <td style="color:var(--text-muted);font-size:12px">${m.kayitTarihi || ''}</td>
         <td>
           <div style="display:flex;gap:6px">
-            <div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;" title="Düzenle"><i class="fas fa-pen"></i></div>
-            <div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;" title="Sil" onclick="deleteMember(${m.id})"><i class="fas fa-trash" style="color:#f87171"></i></div>
+            <div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;cursor:pointer" title="Düzenle" onclick="apiEditMember(${m.id})"><i class="fas fa-pen"></i></div>
+            <div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;cursor:pointer" title="Sil" onclick="apiDeleteMember(${m.id})"><i class="fas fa-trash" style="color:#f87171"></i></div>
           </div>
         </td>
       </tr>`;
   });
-  document.getElementById('memberCount').textContent = `${data.length} üye gösteriliyor`;
+  const countEl = document.getElementById('memberCount');
+  if (countEl) countEl.textContent = `${data.length} üye gösteriliyor`;
 }
 
 function filterMembers(q) {
@@ -94,10 +100,90 @@ function filterByStatus(st) {
 
 function deleteMember(id) {
   members = members.filter(m => m.id !== id);
-  filterByStatus(document.getElementById('statusFilter').value);
-  document.getElementById('totalMembers').textContent = members.length;
-  document.getElementById('sidebarMemberCount').textContent = members.length;
+  filterByStatus(document.getElementById('statusFilter')?.value || 'hepsi');
+  const te = document.getElementById('totalMembers');
+  const se = document.getElementById('sidebarMemberCount');
+  if (te) te.textContent = members.length;
+  if (se) se.textContent = members.length;
   showToast('Üye silindi.');
+}
+
+// ═══════════════════════════════════════════
+// API — SQL Server üzerinden üye yönetimi
+// ═══════════════════════════════════════════
+const API_URL = 'http://localhost:8080';
+let apiMembers = []; // SQL Server'dan gelen üye listesi
+
+function loadMembersFromAPI() {
+  return fetch(API_URL + '/api/uyeler')
+    .then(r => r.json())
+    .then(data => {
+      apiMembers = data.map(u => ({
+        id: u.id, ad: u.ad, soyad: u.soyad,
+        name: u.ad + ' ' + u.soyad,
+        email: u.email, telefon: u.telefon || '',
+        cinsiyet: u.cinsiyet || '', rol: u.rol,
+        durum: u.durum, kayitTarihi: u.kayitTarihi || ''
+      }));
+      return apiMembers;
+    })
+    .catch(() => { console.log('API bağlantısı yok, fallback kullanılıyor'); return []; });
+}
+
+function apiDeleteMember(id) {
+  if (!confirm('Bu üyeyi silmek istediğinizden emin misiniz?')) return;
+  fetch(API_URL + '/api/uye-sil', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: String(id) })
+  })
+  .then(r => r.json())
+  .then(data => {
+    showToast(data.mesaj);
+    if (data.basarili) refreshMemberViews();
+  })
+  .catch(() => showToast('Sunucu bağlantısı hatası!'));
+}
+
+function apiEditMember(id) {
+  const m = apiMembers.find(u => u.id === id);
+  if (!m) { showToast('Üye bulunamadı!'); return; }
+
+  const yeniAd = prompt('Ad:', m.ad);
+  if (yeniAd === null) return;
+  const yeniSoyad = prompt('Soyad:', m.soyad);
+  if (yeniSoyad === null) return;
+  const yeniEmail = prompt('Email:', m.email);
+  if (yeniEmail === null) return;
+  const yeniTelefon = prompt('Telefon:', m.telefon);
+  const yeniDurum = prompt('Durum (aktif/pasif/askida):', m.durum);
+
+  fetch(API_URL + '/api/uye-guncelle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: String(id), ad: yeniAd, soyad: yeniSoyad,
+      email: yeniEmail, telefon: yeniTelefon || '',
+      durum: yeniDurum || 'aktif'
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    showToast(data.mesaj);
+    if (data.basarili) refreshMemberViews();
+  })
+  .catch(() => showToast('Sunucu bağlantısı hatası!'));
+}
+
+function refreshMemberViews() {
+  loadMembersFromAPI().then(data => {
+    renderMembers(data);
+    renderUyelerPage(data);
+    const te = document.getElementById('totalMembers');
+    const se = document.getElementById('sidebarMemberCount');
+    if (te) te.textContent = data.length;
+    if (se) se.textContent = data.length;
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -250,7 +336,7 @@ function renderEquipmentCards() {
     { name:'Smith Machine',        kategori:'Güç',       adet:2,  durum:'calisiyor', sonBakim:null },
     { name:'Yoga Matı',            kategori:'Esneklik',  adet:20, durum:'calisiyor', sonBakim:null },
   ];
-  container.innerHTML = '<div class="ekipman-grid-layout">';
+  container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
   equipment.forEach(e => {
     const d = durumStyle[e.durum];
     const icon = categoryIcons[e.kategori] || '🔧';
@@ -350,9 +436,23 @@ const chartData = {
 
 let chart;
 
+function getChartColors() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  return {
+    grid: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)',
+    tick: isLight ? 'rgba(30,40,80,0.5)' : 'rgba(200,210,255,0.5)',
+    tooltipBg: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(15,20,40,0.95)',
+    tooltipBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+    tooltipTitle: isLight ? '#1a1d2e' : '#f0f4ff',
+    tooltipBody: isLight ? 'rgba(30,40,80,0.7)' : '#94a3b8',
+    legendColor: isLight ? 'rgba(30,40,80,0.6)' : 'rgba(200,210,255,0.7)',
+  };
+}
+
 function initChart(type = 'gelir') {
   const ctx = document.getElementById('mainChart').getContext('2d');
   const d = chartData[type];
+  const cc = getChartColors();
   const grad = ctx.createLinearGradient(0, 0, 0, 220);
   grad.addColorStop(0, d.color1.replace('0.8','0.3'));
   grad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -375,15 +475,15 @@ function initChart(type = 'gelir') {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(15,20,40,0.95)',
-          borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
-          titleColor: '#f0f4ff', bodyColor: '#94a3b8',
+          backgroundColor: cc.tooltipBg,
+          borderColor: cc.tooltipBorder, borderWidth: 1,
+          titleColor: cc.tooltipTitle, bodyColor: cc.tooltipBody,
           padding: 12, cornerRadius: 10
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(200,210,255,0.5)', font: { size: 11 } }, border: { display: false } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(200,210,255,0.5)', font: { size: 11 } }, border: { display: false } }
+        x: { grid: { color: cc.grid }, ticks: { color: cc.tick, font: { size: 11 } }, border: { display: false } },
+        y: { grid: { color: cc.grid }, ticks: { color: cc.tick, font: { size: 11 } }, border: { display: false } }
       }
     }
   });
@@ -396,35 +496,193 @@ function switchChart(type, el) {
 }
 
 // ═══════════════════════════════════════════
-// INIT — SAYFA YÜKLENINCE
+// TEMA DEĞİŞTİRME (Light / Dark Mode)
 // ═══════════════════════════════════════════
-function updateDateTime() {
-  const el = document.getElementById('currentDateTime');
-  if (!el) return;
-  const now = new Date();
-  const gunler = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-  const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-  const gunStr = gunler[now.getDay()];
-  const ayStr = aylar[now.getMonth()];
-  const gun = now.getDate();
-  const yil = now.getFullYear();
-  const saat = String(now.getHours()).padStart(2, '0');
-  const dakika = String(now.getMinutes()).padStart(2, '0');
-  
-  el.innerHTML = `Bugün, ${gun} ${ayStr} ${yil} — ${gunStr} <span style="margin-left:10px;color:var(--accent-cyan);font-weight:600;"><i class="far fa-clock"></i> ${saat}:${dakika}</span>`;
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const newTheme = current === 'light' ? 'dark' : 'light';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('fitzone-theme', newTheme);
+  updateThemeIcons(newTheme);
+  // Grafikleri yeniden çiz (renk uyumu için)
+  if (typeof chart !== 'undefined' && chart) {
+    const activeTab = document.querySelector('.chart-tab.active');
+    if (activeTab) {
+      const type = activeTab.textContent.trim().toLowerCase();
+      const typeMap = { 'gelir':'gelir', 'üye':'uye', 'devamsız':'devamsiz' };
+      initChart(typeMap[type] || 'gelir');
+    }
+  }
 }
 
+function updateThemeIcons(theme) {
+  const icons = ['themeIconLanding', 'themeIconTopbar', 'themeIconSidebar'];
+  icons.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+    }
+  });
+  const label = document.getElementById('themeLabel');
+  if (label) {
+    label.textContent = theme === 'light' ? 'Karanlık Mod' : 'Aydınlık Mod';
+  }
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('fitzone-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeIcons(saved);
+}
+
+// ═══════════════════════════════════════════
+// ROL PROFİLLERİ
+// ═══════════════════════════════════════════
+const roleProfiles = {
+  admin:    { name:'Admin Yönetici',  email:'admin@fitzone.com',  rol:'admin' },
+  uye:      { name:'Ahmet Yılmaz',    email:'ahmet@mail.com',     rol:'uye' },
+  antrenor: { name:'Kemal Antrenör',  email:'kemal@fitzone.com',  rol:'antrenor' },
+};
+
+// ═══════════════════════════════════════════
+// DASHBOARD İSTATİSTİKLERİ (API'den)
+// ═══════════════════════════════════════════
+function loadDashboardStats() {
+  fetch(API_URL + '/api/istatistikler')
+    .then(r => r.json())
+    .then(data => {
+      const el1 = document.getElementById('totalMembers');
+      const el2 = document.getElementById('monthlyIncome');
+      const el3 = document.getElementById('activeMembers');
+      const el4 = document.getElementById('expiredMembers');
+      const sb  = document.getElementById('sidebarMemberCount');
+      if (el1) el1.textContent = data.toplamUye;
+      if (el2) el2.textContent = '₺' + Number(data.buAyGelir).toLocaleString('tr-TR');
+      if (el3) el3.textContent = data.aktifAbonelik;
+      if (el4) el4.textContent = data.suresiDolan;
+      if (sb)  sb.textContent  = data.toplamUye;
+    })
+    .catch(() => console.log('İstatistik API bağlantısı yok'));
+}
+
+// ═══════════════════════════════════════════
+// API'den render fonksiyonları
+// ═══════════════════════════════════════════
+function loadRecentPaymentsFromAPI() {
+  fetch(API_URL + '/api/odemeler').then(r => r.json()).then(data => {
+    const container = document.getElementById('recentPayments');
+    if (!container) return;
+    const iconMap = { 'Platinum':{ icon:'fa-crown', color:'#a78bfa', bg:'rgba(139,92,246,.15)' }, 'Gold':{ icon:'fa-star', color:'#fbbf24', bg:'rgba(251,191,36,.15)' }, 'Silver':{ icon:'fa-medal', color:'#94a3b8', bg:'rgba(148,163,184,.15)' }, 'Basic':{ icon:'fa-shield', color:'#67e8f9', bg:'rgba(34,211,238,.1)' } };
+    container.innerHTML = '';
+    data.slice(0, 5).forEach(p => {
+      const pi = iconMap[p.plan] || { icon:'fa-receipt', color:'#94a3b8', bg:'rgba(148,163,184,.15)' };
+      const isIade = p.durum === 'iade';
+      if (isIade) { pi.icon = 'fa-rotate-left'; pi.color = '#f87171'; pi.bg = 'rgba(239,68,68,.15)'; }
+      container.innerHTML += `<div class="payment-item"><div class="pay-icon" style="background:${pi.bg};color:${pi.color}"><i class="fas ${pi.icon}"></i></div><div><div class="pay-name">${p.uye}</div><div class="pay-date">${p.plan} — ${p.yontem} — ${p.tarih}</div></div><div class="pay-amount ${isIade?'neg':'pos'}">${isIade?'-':'+'}₺${Math.round(p.miktar)}</div></div>`;
+    });
+  }).catch(() => renderRecentPayments());
+}
+
+function loadPlanCardsFromAPI() {
+  fetch(API_URL + '/api/planlar').then(r => r.json()).then(data => {
+    const container = document.getElementById('planCards');
+    if (!container) return;
+    const iconMap = { 'Platinum':'💎', 'Gold':'⭐', 'Silver':'🥈', 'Basic':'🔰' };
+    const colorMap = { 'Platinum':{ color:'#a78bfa', bg:'rgba(139,92,246,.15)' }, 'Gold':{ color:'#fbbf24', bg:'rgba(251,191,36,.15)' }, 'Silver':{ color:'#94a3b8', bg:'rgba(148,163,184,.15)' }, 'Basic':{ color:'#67e8f9', bg:'rgba(34,211,238,.1)' } };
+    container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    data.forEach(p => {
+      const c = colorMap[p.ad] || { color:'#94a3b8', bg:'rgba(148,163,184,.15)' };
+      const icon = iconMap[p.ad] || '📋';
+      container.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:${c.bg};color:${c.color};font-size:18px;">${icon}</div><div><div class="plan-name">${p.ad}</div><div class="plan-members">${p.aktifUye} aktif üye · ${p.sureAy} ay</div></div></div><div class="plan-price" style="color:${c.color}">₺${Math.round(p.fiyat)}/ay</div></div>`;
+    });
+    container.innerHTML += '</div>';
+  }).catch(() => renderPlanCards());
+}
+
+function loadClassCardsFromAPI() {
+  fetch(API_URL + '/api/dersler').then(r => r.json()).then(data => {
+    const container = document.getElementById('classCards');
+    if (!container) return;
+    const iconMap = { 'Esneklik':'🧘', 'Kardio':'🥊', 'Güç':'🏋️' };
+    container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    data.dersler.forEach(d => {
+      const prog = data.program.find(p => p.ders === d.ders);
+      const saat = prog ? prog.saat : '';
+      const salon = prog ? prog.salon : '';
+      const icon = iconMap[d.kategori] || '📋';
+      container.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:rgba(0,212,255,.1);color:var(--accent-cyan);font-size:17px;">${icon}</div><div><div class="plan-name">${d.ders}</div><div class="plan-members">${saat} — ${salon} — ${d.antrenor} — ${d.kontenjan} kişi</div></div></div><div style="font-size:11px;background:rgba(0,212,255,.1);color:var(--accent-cyan);padding:4px 10px;border-radius:20px;font-weight:600;">Aktif</div></div>`;
+    });
+    container.innerHTML += '</div>';
+  }).catch(() => renderClassCards());
+}
+
+function loadTrainerCardsFromAPI() {
+  fetch(API_URL + '/api/antrenorler-detay').then(r => r.json()).then(data => {
+    const container = document.getElementById('trainerCards');
+    if (!container) return;
+    container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    data.forEach((t, idx) => {
+      const color = avatarColors[idx % avatarColors.length];
+      container.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="m-avatar" style="background:${color};width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:13px;font-weight:700;flex-shrink:0;">${getInitials(t.isim)}</div><div><div class="plan-name">${t.isim}</div><div class="plan-members">${t.uzmanlik}</div><div class="plan-members">${t.deneyim} yıl · ${t.dersCount} ders · ${t.sertifikalar}</div></div></div><div style="font-size:11px;background:rgba(74,222,128,.1);color:#4ade80;padding:4px 10px;border-radius:20px;font-weight:600;">Aktif</div></div>`;
+    });
+    container.innerHTML += '</div>';
+  }).catch(() => renderTrainerCards());
+}
+
+function loadAccessLogsFromAPI() {
+  fetch(API_URL + '/api/giris-cikis').then(r => r.json()).then(data => {
+    const container = document.getElementById('accessLogs');
+    if (!container) return;
+    const turuLabel = { normal:'Normal', qr:'QR Kod', kart:'Kart' };
+    const turuIcon  = { normal:'fa-door-open', qr:'fa-qrcode', kart:'fa-id-badge' };
+    container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    if (data.length === 0) { container.innerHTML += '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Bugün giriş kaydı yok</div>'; }
+    data.forEach(l => {
+      const isInside = l.durum === 'giris';
+      container.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:${isInside?'rgba(74,222,128,.1)':'rgba(148,163,184,.1)'};color:${isInside?'#4ade80':'#94a3b8'};font-size:16px;"><i class="fas ${turuIcon[l.turu]||'fa-door-open'}"></i></div><div><div class="plan-name">${l.uye}</div><div class="plan-members">Giriş: ${l.giris} · Çıkış: ${l.cikis||'İçeride'} · ${turuLabel[l.turu]||l.turu}</div></div></div><div style="font-size:11px;background:${isInside?'rgba(74,222,128,.1)':'rgba(148,163,184,.1)'};color:${isInside?'#4ade80':'#94a3b8'};padding:4px 10px;border-radius:20px;font-weight:600;">${isInside?'İçeride':'Çıktı'}</div></div>`;
+    });
+    container.innerHTML += '</div>';
+  }).catch(() => renderAccessLogs());
+}
+
+function loadEquipmentCardsFromAPI() {
+  fetch(API_URL + '/api/ekipman').then(r => r.json()).then(data => {
+    const container = document.getElementById('equipmentCards');
+    if (!container) return;
+    const durumStyle = { calisiyor:{ text:'Çalışıyor', color:'#4ade80', bg:'rgba(74,222,128,.1)' }, bakimda:{ text:'Bakımda', color:'#fbbf24', bg:'rgba(251,191,36,.1)' }, arizali:{ text:'Arızalı', color:'#f87171', bg:'rgba(239,68,68,.1)' } };
+    const categoryIcons = { 'Kardio':'🏃', 'Güç':'💪', 'Esneklik':'🧘' };
+    container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    data.ekipman.forEach(e => {
+      const d = durumStyle[e.durum] || durumStyle.calisiyor;
+      const icon = categoryIcons[e.kategori] || '🔧';
+      const bakim = data.bakim.find(b => b.ekipman === e.ad);
+      container.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:${d.bg};color:${d.color};font-size:17px;">${icon}</div><div><div class="plan-name">${e.ad}</div><div class="plan-members">${e.kategori} · ${e.adet} adet${bakim ? ' · Son bakım: '+bakim.tarih : ''}</div></div></div><div style="font-size:11px;background:${d.bg};color:${d.color};padding:4px 10px;border-radius:20px;font-weight:600;">${d.text}</div></div>`;
+    });
+    container.innerHTML += '</div>';
+  }).catch(() => renderEquipmentCards());
+}
+
+// ═══════════════════════════════════════════
+// INIT — SAYFA YÜKLENINCE
+// ═══════════════════════════════════════════
 function initApp() {
-  renderMembers(members);
-  renderRecentPayments();
-  renderPlanCards();
-  renderClassCards();
-  renderTrainerCards();
-  renderAccessLogs();
-  renderEquipmentCards();
+  loadTheme();
+  // Dashboard istatistikleri API'den
+  loadDashboardStats();
+  // Üye listesi API'den
+  loadMembersFromAPI().then(data => {
+    if (data.length > 0) { renderMembers(data); }
+    else { renderMembers(members); }
+  });
+  // Dashboard kartları API'den
+  loadRecentPaymentsFromAPI();
+  loadPlanCardsFromAPI();
+  loadClassCardsFromAPI();
+  loadTrainerCardsFromAPI();
+  loadAccessLogsFromAPI();
+  loadEquipmentCardsFromAPI();
   initChart();
-  updateDateTime();
-  setInterval(updateDateTime, 1000);
 }
 
 // ═══════════════════════════════════════════
@@ -461,43 +719,49 @@ function navigateTo(page, navEl) {
 // ═══════════════════════════════════════════
 // ÜYELER SAYFASI
 // ═══════════════════════════════════════════
-const uyelerData = [
-  { id:1, name:'Ahmet Yılmaz',  email:'ahmet@mail.com',  uyelikNo:'FZ-2026-001', telefon:'0532 111 11 11', cinsiyet:'Erkek', plan:'platinum', status:'aktif',        kayitTarihi:'2026-01-15' },
-  { id:2, name:'Fatma Kaya',    email:'fatma@mail.com',  uyelikNo:'FZ-2026-002', telefon:'0533 222 22 22', cinsiyet:'Kadın', plan:'gold',     status:'aktif',        kayitTarihi:'2026-02-01' },
-  { id:3, name:'Can Öztürk',    email:'can@mail.com',    uyelikNo:'FZ-2026-003', telefon:'0534 333 33 33', cinsiyet:'Erkek', plan:'silver',   status:'aktif',        kayitTarihi:'2026-01-01' },
-  { id:4, name:'Selin Arslan',  email:'selin@mail.com',  uyelikNo:'FZ-2026-004', telefon:'0535 444 44 44', cinsiyet:'Kadın', plan:'platinum', status:'aktif',        kayitTarihi:'2025-12-01' },
-  { id:5, name:'Emre Demir',    email:'emre@mail.com',   uyelikNo:'FZ-2026-005', telefon:'0536 555 55 55', cinsiyet:'Erkek', plan:'basic',    status:'aktif',        kayitTarihi:'2026-03-01' },
-  { id:6, name:'Zeynep Şahin',  email:'zeynep@mail.com', uyelikNo:'FZ-2026-006', telefon:'0537 666 66 66', cinsiyet:'Kadın', plan:'gold',     status:'suresi_doldu', kayitTarihi:'2025-11-01' },
-  { id:7, name:'Murat Çelik',   email:'murat@mail.com',  uyelikNo:'FZ-2026-007', telefon:'0538 777 77 77', cinsiyet:'Erkek', plan:'silver',   status:'aktif',        kayitTarihi:'2026-02-15' },
-  { id:8, name:'Ayşe Yıldız',   email:'ayse@mail.com',   uyelikNo:'FZ-2026-008', telefon:'0539 888 88 88', cinsiyet:'Kadın', plan:'platinum', status:'aktif',        kayitTarihi:'2026-01-20' },
-];
+let uyelerCachedData = [];
 
 function renderUyelerPage(data) {
-  const list = data || uyelerData;
+  // Eğer data verilmemişse API'den çek
+  if (!data) {
+    loadMembersFromAPI().then(apiData => {
+      uyelerCachedData = apiData;
+      renderUyelerPageTable(apiData);
+    });
+    return;
+  }
+  uyelerCachedData = data;
+  renderUyelerPageTable(data);
+}
+
+function renderUyelerPageTable(list) {
   const tbody = document.getElementById('uyelerTableBody');
   if (!tbody) return;
-  const statusLabel = { aktif:'Aktif', pasif:'Pasif', suresi_doldu:'Süresi Doldu' };
+  const statusLabel = { aktif:'Aktif', pasif:'Pasif', suresi_doldu:'Süresi Doldu', askida:'Askıda' };
   tbody.innerHTML = '';
   list.forEach((m, idx) => {
-    const p = planColors[m.plan];
     const color = avatarColors[idx % avatarColors.length];
+    const name = m.name || (m.ad + ' ' + m.soyad);
+    const durum = m.status || m.durum || 'aktif';
     tbody.innerHTML += `<tr>
-      <td><div class="member-info"><div class="m-avatar" style="background:${color}">${getInitials(m.name)}</div><div><div class="m-name">${m.name}</div><div class="m-email">${m.email}</div></div></div></td>
-      <td style="color:var(--text-muted);font-size:12px;font-weight:600">${m.uyelikNo}</td>
-      <td style="color:var(--text-muted);font-size:12px">${m.telefon}</td>
-      <td style="color:var(--text-muted);font-size:12px">${m.cinsiyet}</td>
-      <td><span class="plan-badge ${p.class}">${p.icon} ${m.plan.charAt(0).toUpperCase()+m.plan.slice(1)}</span></td>
-      <td><span class="status-dot ${m.status}">${statusLabel[m.status]||m.status}</span></td>
-      <td style="color:var(--text-muted);font-size:12px">${m.kayitTarihi}</td>
-      <td><div style="display:flex;gap:6px"><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;" title="Düzenle"><i class="fas fa-pen"></i></div><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;" title="Sil"><i class="fas fa-trash" style="color:#f87171"></i></div></div></td></tr>`;
+      <td><div class="member-info"><div class="m-avatar" style="background:${color}">${getInitials(name)}</div><div><div class="m-name">${name}</div><div class="m-email">${m.email}</div></div></div></td>
+      <td style="color:var(--text-muted);font-size:12px">${m.telefon || ''}</td>
+      <td style="color:var(--text-muted);font-size:12px">${m.cinsiyet || ''}</td>
+      <td style="color:var(--text-muted);font-size:12px">${m.rol || ''}</td>
+      <td><span class="status-dot ${durum}">${statusLabel[durum]||durum}</span></td>
+      <td style="color:var(--text-muted);font-size:12px">${m.kayitTarihi || ''}</td>
+      <td><div style="display:flex;gap:6px"><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;cursor:pointer" title="Düzenle" onclick="apiEditMember(${m.id})"><i class="fas fa-pen"></i></div><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;cursor:pointer" title="Sil" onclick="apiDeleteMember(${m.id})"><i class="fas fa-trash" style="color:#f87171"></i></div></div></td></tr>`;
   });
 }
 
 function filterUyelerPage(q) {
-  let f = uyelerData.filter(m => m.name.toLowerCase().includes(q.toLowerCase()) || m.email.toLowerCase().includes(q.toLowerCase()));
+  let f = uyelerCachedData.filter(m => {
+    const name = m.name || (m.ad + ' ' + m.soyad);
+    return name.toLowerCase().includes(q.toLowerCase()) || m.email.toLowerCase().includes(q.toLowerCase());
+  });
   const st = document.getElementById('uyelerStatusFilter')?.value;
-  if (st && st !== 'hepsi') f = f.filter(m => m.status === st);
-  renderUyelerPage(f);
+  if (st && st !== 'hepsi') f = f.filter(m => (m.durum || m.status) === st);
+  renderUyelerPageTable(f);
 }
 
 // ═══════════════════════════════════════════
@@ -516,20 +780,20 @@ const aboneliklerData = [
 
 let planChartInstance = null;
 function renderAboneliklerPage() {
-  // Plan cards
   const planContainer = document.getElementById('abonelikPlanCards');
   if (!planContainer) return;
-  const plans = [
-    { icon:'💎', name:'Platinum', members:3, sureAy:12, price:'₺850/ay', color:'#a78bfa', bg:'rgba(139,92,246,.15)', ozellikler:['Fitness alanı','Sınırsız her şey','3 PT seansı/ay','Havuz & Sauna','Öncelikli rezervasyon'] },
-    { icon:'⭐', name:'Gold',     members:2, sureAy:6,  price:'₺550/ay', color:'#fbbf24', bg:'rgba(251,191,36,.15)', ozellikler:['Fitness alanı','Sınırsız grup dersi','1 PT seansı/ay','Havuz'] },
-    { icon:'🥈', name:'Silver',   members:2, sureAy:3,  price:'₺350/ay', color:'#94a3b8', bg:'rgba(148,163,184,.15)', ozellikler:['Fitness alanı','2 grup dersi/hafta','Duş & soyunma'] },
-    { icon:'🔰', name:'Basic',    members:1, sureAy:1,  price:'₺199/ay', color:'#67e8f9', bg:'rgba(34,211,238,.1)', ozellikler:['Fitness alanı','Duş & soyunma'] },
-  ];
-  planContainer.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
-  plans.forEach(p => {
-    planContainer.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:${p.bg};color:${p.color};font-size:18px;">${p.icon}</div><div><div class="plan-name">${p.name}</div><div class="plan-members">${p.members} aktif üye · ${p.sureAy} ay · ${p.ozellikler.join(', ')}</div></div></div><div class="plan-price" style="color:${p.color}">${p.price}</div></div>`;
+  // API'den planları çek
+  fetch(API_URL + '/api/planlar').then(r => r.json()).then(plans => {
+    const iconMap = { 'Platinum':'💎', 'Gold':'⭐', 'Silver':'🥈', 'Basic':'🔰' };
+    const colorMap = { 'Platinum':{ color:'#a78bfa', bg:'rgba(139,92,246,.15)' }, 'Gold':{ color:'#fbbf24', bg:'rgba(251,191,36,.15)' }, 'Silver':{ color:'#94a3b8', bg:'rgba(148,163,184,.15)' }, 'Basic':{ color:'#67e8f9', bg:'rgba(34,211,238,.1)' } };
+    planContainer.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+    plans.forEach(p => {
+      const c = colorMap[p.ad] || { color:'#94a3b8', bg:'rgba(148,163,184,.15)' };
+      const icon = iconMap[p.ad] || '📋';
+      const oz = Array.isArray(p.ozellikler) ? p.ozellikler.join(', ') : '';
+      planContainer.innerHTML += `<div class="plan-card"><div class="plan-left"><div class="plan-icon" style="background:${c.bg};color:${c.color};font-size:18px;">${icon}</div><div><div class="plan-name">${p.ad}</div><div class="plan-members">${p.aktifUye} aktif üye · ${p.sureAy} ay · ${oz}</div></div></div><div class="plan-price" style="color:${c.color}">₺${Math.round(p.fiyat)}/ay</div></div>`;
   });
-  planContainer.innerHTML += '</div>';
+    planContainer.innerHTML += '</div>';
 
   // Plan chart
   const ctx = document.getElementById('planChart');
@@ -542,29 +806,31 @@ function renderAboneliklerPage() {
     });
   }
 
-  // Abonelik tablosu
-  const tbody = document.getElementById('aboneliklerTableBody');
-  if (!tbody) return;
-  const durumLabel = { aktif:'Aktif', pasif:'Pasif', iptal:'İptal', suresi_doldu:'Süresi Doldu' };
-  tbody.innerHTML = '';
-  // Üye rolünde sadece kendi aboneliğini göster
-  const currentProfile = roleProfiles[currentRole];
-  const filteredAbonelikler = currentRole === 'uye'
-    ? aboneliklerData.filter(a => a.uye === currentProfile.name)
-    : aboneliklerData;
-  filteredAbonelikler.forEach((a, idx) => {
-    const color = avatarColors[idx % avatarColors.length];
-    const pKey = a.plan.toLowerCase();
-    const p = planColors[pKey] || planColors.basic;
-    tbody.innerHTML += `<tr>
-      <td><div class="member-info"><div class="m-avatar" style="background:${color}">${getInitials(a.uye)}</div><div class="m-name">${a.uye}</div></div></td>
-      <td><span class="plan-badge ${p.class}">${p.icon} ${a.plan}</span></td>
-      <td style="color:var(--text-muted);font-size:12px">${a.baslangic}</td>
-      <td style="color:var(--text-muted);font-size:12px">${a.bitis}</td>
-      <td style="text-align:center"><i class="fas ${a.otomatik?'fa-check-circle':'fa-times-circle'}" style="color:${a.otomatik?'#4ade80':'#f87171'}"></i></td>
-      <td><span class="status-dot ${a.durum}">${durumLabel[a.durum]}</span></td>
-      <td><div style="display:flex;gap:6px"><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;"><i class="fas fa-pen"></i></div><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;"><i class="fas fa-clock-rotate-left" style="color:#fbbf24"></i></div></div></td></tr>`;
-  });
+  // Abonelik tablosu API'den
+  fetch(API_URL + '/api/abonelikler').then(r => r.json()).then(abonelikler => {
+    const tbody = document.getElementById('aboneliklerTableBody');
+    if (!tbody) return;
+    const durumLabel = { aktif:'Aktif', pasif:'Pasif', iptal:'İptal', suresi_doldu:'Süresi Doldu' };
+    tbody.innerHTML = '';
+    const currentProfile = roleProfiles[currentRole];
+    const filteredAbonelikler = currentRole === 'uye'
+      ? abonelikler.filter(a => a.uye === currentProfile.name)
+      : abonelikler;
+    filteredAbonelikler.forEach((a, idx) => {
+      const color = avatarColors[idx % avatarColors.length];
+      const pKey = a.plan.toLowerCase();
+      const p = planColors[pKey] || planColors.basic;
+      tbody.innerHTML += `<tr>
+        <td><div class="member-info"><div class="m-avatar" style="background:${color}">${getInitials(a.uye)}</div><div class="m-name">${a.uye}</div></div></td>
+        <td><span class="plan-badge ${p.class}">${p.icon} ${a.plan}</span></td>
+        <td style="color:var(--text-muted);font-size:12px">${a.baslangic}</td>
+        <td style="color:var(--text-muted);font-size:12px">${a.bitis}</td>
+        <td style="text-align:center"><i class="fas ${a.otomatik?'fa-check-circle':'fa-times-circle'}" style="color:${a.otomatik?'#4ade80':'#f87171'}"></i></td>
+        <td><span class="status-dot ${a.durum}">${durumLabel[a.durum]}</span></td>
+        <td><div style="display:flex;gap:6px"><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;"><i class="fas fa-pen"></i></div><div class="icon-btn" style="width:30px;height:30px;border-radius:8px;font-size:11px;"><i class="fas fa-clock-rotate-left" style="color:#fbbf24"></i></div></div></td></tr>`;
+    });
+  }).catch(() => {});
+  }).catch(() => {});
 }
 
 // ═══════════════════════════════════════════
@@ -600,25 +866,29 @@ function renderOdemelerTable(data) {
 }
 
 function renderOdemelerPage() {
-  // Üye rolünde sadece kendi ödemelerini göster
-  const currentProfile = roleProfiles[currentRole];
-  const veri = currentRole === 'uye'
-    ? odemelerData.filter(o => o.uye === currentProfile.name)
-    : odemelerData;
-  renderOdemelerTable(veri);
-  // İstatistik kartlarını güncelle
-  const toplamGelir = veri.filter(o => o.durum !== 'iade').reduce((s, o) => s + o.miktar, 0);
-  const toplamIslem = veri.length;
-  const tamamlanan  = veri.filter(o => o.durum === 'tamamlandi').length;
-  const iade        = veri.filter(o => o.durum === 'iade').length;
-  const elToplam    = document.getElementById('odemeToplam');
-  const elIslem     = document.getElementById('odemeTotalIslem');
-  const elTam       = document.getElementById('odemeTamamlanan');
-  const elIade      = document.getElementById('odemeIade');
-  if (elToplam) elToplam.textContent = '₺' + toplamGelir.toLocaleString('tr-TR');
-  if (elIslem)  elIslem.textContent  = toplamIslem;
-  if (elTam)    elTam.textContent    = tamamlanan;
-  if (elIade)   elIade.textContent   = iade;
+  fetch(API_URL + '/api/odemeler').then(r => r.json()).then(apiData => {
+    const currentProfile = roleProfiles[currentRole];
+    const veri = currentRole === 'uye'
+      ? apiData.filter(o => o.uye === currentProfile.name)
+      : apiData;
+    renderOdemelerTable(veri);
+    const toplamGelir = veri.filter(o => o.durum !== 'iade').reduce((s, o) => s + o.miktar, 0);
+    const toplamIslem = veri.length;
+    const tamamlanan  = veri.filter(o => o.durum === 'tamamlandi').length;
+    const iade        = veri.filter(o => o.durum === 'iade').length;
+    const elToplam    = document.getElementById('odemeToplam');
+    const elIslem     = document.getElementById('odemeTotalIslem');
+    const elTam       = document.getElementById('odemeTamamlanan');
+    const elIade      = document.getElementById('odemeIade');
+    if (elToplam) elToplam.textContent = '₺' + toplamGelir.toLocaleString('tr-TR');
+    if (elIslem)  elIslem.textContent  = toplamIslem;
+    if (elTam)    elTam.textContent    = tamamlanan;
+    if (elIade)   elIade.textContent   = iade;
+  }).catch(() => {
+    const currentProfile = roleProfiles[currentRole];
+    const veri = currentRole === 'uye' ? odemelerData.filter(o => o.uye === currentProfile.name) : odemelerData;
+    renderOdemelerTable(veri);
+  });
 }
 function filterOdemeler(st) {
   const currentProfile = roleProfiles[currentRole];
@@ -747,7 +1017,12 @@ function renderGirisCikisTable(data) {
   });
 }
 
-function renderGirisCikisPage() { renderGirisCikisTable(girisCikisData); }
+function renderGirisCikisPage() {
+  fetch(API_URL + '/api/giris-cikis').then(r => r.json()).then(data => {
+    const mapped = data.map(l => ({ uye:l.uye, giris:l.giris, cikis:l.cikis, turu:l.turu, durum:l.durum }));
+    renderGirisCikisTable(mapped);
+  }).catch(() => renderGirisCikisTable(girisCikisData));
+}
 function filterGirisCikis(st) {
   renderGirisCikisTable(st === 'hepsi' ? girisCikisData : girisCikisData.filter(l => l.durum === st));
 }
@@ -788,20 +1063,23 @@ function renderEkipmanTable(data) {
 }
 
 function renderEkipmanPage() {
-  renderEkipmanTable(ekipmanData);
-  const bTb = document.getElementById('bakimTableBody');
-  if (!bTb) return;
-  bTb.innerHTML = '';
-  bakimData.forEach(b => {
-    bTb.innerHTML += `<tr>
-      <td class="m-name">${b.ekipman}</td>
-      <td style="color:var(--text-muted);font-size:12px">${b.tarih}</td>
-      <td style="font-family:'Clash Display',sans-serif;font-weight:700;color:#fbbf24">₺${b.maliyet.toLocaleString('tr-TR')}</td>
-      <td style="color:var(--text-muted);font-size:12px">${b.yapan}</td>
-      <td style="color:var(--text-muted);font-size:12px">${b.aciklama}</td>
-      <td style="color:var(--text-muted);font-size:12px">${b.sonraki}</td>
-      <td><span style="font-size:11px;background:rgba(74,222,128,.1);color:#4ade80;padding:4px 10px;border-radius:20px;font-weight:600;">Tamamlandı</span></td></tr>`;
-  });
+  fetch(API_URL + '/api/ekipman').then(r => r.json()).then(data => {
+    const mapped = data.ekipman.map(e => ({ ad:e.ad, kategori:e.kategori, adet:e.adet, satinAlma:e.satinAlma, fiyat:e.fiyat, durum:e.durum }));
+    renderEkipmanTable(mapped);
+    const bTb = document.getElementById('bakimTableBody');
+    if (!bTb) return;
+    bTb.innerHTML = '';
+    data.bakim.forEach(b => {
+      bTb.innerHTML += `<tr>
+        <td class="m-name">${b.ekipman}</td>
+        <td style="color:var(--text-muted);font-size:12px">${b.tarih}</td>
+        <td style="font-family:'Clash Display',sans-serif;font-weight:700;color:#fbbf24">₺${Number(b.maliyet).toLocaleString('tr-TR')}</td>
+        <td style="color:var(--text-muted);font-size:12px">${b.yapan}</td>
+        <td style="color:var(--text-muted);font-size:12px">${b.aciklama}</td>
+        <td style="color:var(--text-muted);font-size:12px">${b.sonraki}</td>
+        <td><span style="font-size:11px;background:rgba(74,222,128,.1);color:#4ade80;padding:4px 10px;border-radius:20px;font-weight:600;">Tamamlandı</span></td></tr>`;
+    });
+  }).catch(() => renderEkipmanTable(ekipmanData));
 }
 
 function filterEkipman(st) {
@@ -814,7 +1092,8 @@ function filterEkipman(st) {
 function renderRaporlarPage() {
   Object.values(raporCharts).forEach(c => c.destroy());
   raporCharts = {};
-  const baseOpt = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'rgba(200,210,255,0.7)', font:{size:11} } } }, scales:{ x:{ grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'rgba(200,210,255,0.5)' }, border:{ display:false } }, y:{ grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'rgba(200,210,255,0.5)' }, border:{ display:false } } } };
+  const cc = getChartColors();
+  const baseOpt = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:cc.legendColor, font:{size:11} } } }, scales:{ x:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick }, border:{ display:false } }, y:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick }, border:{ display:false } } } };
 
   const c1 = document.getElementById('raporGelirChart');
   if (c1) { raporCharts.gelir = new Chart(c1.getContext('2d'), { type:'bar', data:{ labels:['Eyl','Eki','Kas','Ara','Oca','Şub','Mar'], datasets:[{ label:'Gelir (₺)', data:[32000,37000,41000,38000,43000,45000,47200], backgroundColor:'rgba(139,92,246,0.6)', borderRadius:8, barThickness:24 }] }, options:{...baseOpt, plugins:{legend:{display:false}}} }); }
@@ -867,17 +1146,130 @@ function closeRegisterModal(){ document.getElementById('registerModal').classLis
 function showForgotModal()   { document.getElementById('forgotModal').classList.add('open'); }
 function closeForgotModal()  { document.getElementById('forgotModal').classList.remove('open'); }
 
-// --- Login handler (demo — no real auth) ---
+// --- Login handler — email + şifre ile giriş (API destekli) ---
 function handleLogin() {
-  const role = document.getElementById('loginRole').value;
-  closeLoginModal();
-  loginAs(role);
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const sifre = document.getElementById('loginPassword').value;
+
+  if (!email || !sifre) {
+    showToast('E-posta ve şifre alanlarını doldurun!');
+    return;
+  }
+
+  // Önce API'ye sor (SQL Server)
+  fetch('http://localhost:8080/api/giris', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, sifre })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.basarili) {
+      const k = data.kullanici;
+      const user = {
+        ad: k.ad, soyad: k.soyad, email: k.email,
+        rol: k.rol, name: k.ad + ' ' + k.soyad, sifre: sifre
+      };
+      // localStorage'a da ekle (offline tutarlılık için)
+      if (!registeredUsers.some(u => u.email.toLowerCase() === email)) {
+        registeredUsers.push(user);
+        saveRegisteredUsers();
+      }
+      closeLoginModal();
+      loginAs(user.rol, user);
+    } else {
+      showToast(data.mesaj || 'Giriş başarısız!');
+    }
+  })
+  .catch(() => {
+    // API erişilemezse localStorage'dan dene (fallback)
+    const user = registeredUsers.find(u => u.email.toLowerCase() === email);
+    if (!user) { showToast('Sunucu bağlantısı yok ve kullanıcı bulunamadı!'); return; }
+    if (user.sifre !== sifre) { showToast('Şifre yanlış!'); return; }
+    closeLoginModal();
+    loginAs(user.rol, user);
+  });
 }
 
 function handleRegister() {
-  closeRegisterModal();
-  showToast('Kayıt başarılı! Giriş yapabilirsiniz.');
-  setTimeout(() => showLoginModal(), 600);
+  const ad     = document.getElementById('regName').value.trim();
+  const soyad  = document.getElementById('regSurname').value.trim();
+  const email  = document.getElementById('regEmail').value.trim().toLowerCase();
+  const telefon= document.getElementById('regPhone').value.trim();
+  const cinsiyet=document.getElementById('regGender').value;
+  const dogum  = document.getElementById('regBirth').value;
+  const sifre  = document.getElementById('regPassword').value;
+  const sifre2 = document.getElementById('regPassword2').value;
+
+  if (!ad || !soyad || !email || !sifre) {
+    showToast('Tüm alanları doldurun!');
+    return;
+  }
+  if (sifre !== sifre2) {
+    showToast('Şifreler eşleşmiyor!');
+    return;
+  }
+  if (sifre.length < 6) {
+    showToast('Şifre en az 6 karakter olmalıdır!');
+    return;
+  }
+
+  // API üzerinden SQL Server'a kaydet
+  fetch('http://localhost:8080/api/kayit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ad, soyad, email, telefon, cinsiyet, dogum_tarihi: dogum, sifre, rol: 'uye' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.basarili) {
+      // localStorage'a da ekle (frontend tutarlılığı için)
+      registeredUsers.push({
+        ad, soyad, email, telefon, cinsiyet, dogum, sifre, rol: 'uye', name: ad + ' ' + soyad
+      });
+      saveRegisteredUsers();
+
+      // Üye listesine de ekle (Varsayılan plan ataması yok - kullanıcı seçecek)
+      const yeniId = members.length + 1;
+      members.push({
+        id: yeniId, name: ad + ' ' + soyad, email: email,
+        telefon: telefon, cinsiyet: cinsiyet,
+        uyelikNo: 'FZ-2026-' + String(yeniId).padStart(3, '0'),
+        plan: '-', start: '-',
+        end: '-', payment: '-', status: 'pasif', odemeYontemi: '-'
+      });
+      saveMembers();
+
+      closeRegisterModal();
+      showToast('Kayıt başarılı! Giriş yapabilirsiniz.');
+      setTimeout(() => showLoginModal(), 600);
+    } else {
+      showToast(data.mesaj || 'Kayıt başarısız!');
+    }
+  })
+  .catch(() => {
+    // API erişilemezse sadece localStorage'a kaydet (fallback)
+    if (registeredUsers.some(u => u.email.toLowerCase() === email)) {
+      showToast('Bu e-posta zaten kayıtlı!');
+      return;
+    }
+    registeredUsers.push({ ad, soyad, email, telefon, cinsiyet, dogum, sifre, rol: 'uye', name: ad + ' ' + soyad });
+    saveRegisteredUsers();
+
+    const yeniId = members.length + 1;
+    members.push({
+      id: yeniId, name: ad + ' ' + soyad, email: email,
+      telefon: telefon, cinsiyet: cinsiyet,
+      uyelikNo: 'FZ-2026-' + String(yeniId).padStart(3, '0'),
+      plan: '-', start: '-',
+      end: '-', payment: '-', status: 'pasif', odemeYontemi: '-'
+    });
+    saveMembers();
+
+    closeRegisterModal();
+    showToast('Kayıt başarılı (çevrimdışı mod). Giriş yapabilirsiniz.');
+    setTimeout(() => showLoginModal(), 600);
+  });
 }
 
 function handleForgot() {
@@ -886,21 +1278,41 @@ function handleForgot() {
   setTimeout(() => showLoginModal(), 600);
 }
 
-// --- Role-based login ---
-const roleProfiles = {
-  admin:    { name: 'Admin Yönetici',   role: 'Süper Admin', initials: 'AY' },
-  uye:     { name: 'Ahmet Yılmaz',     role: 'Üye',         initials: 'AH' },
-  antrenor: { name: 'Kemal Antrenör',   role: 'Antrenör',    initials: 'KA' },
-};
+// --- Kayıtlı kullanıcılar (localStorage destekli) ---
+const defaultUsers = [
+  { ad:'Admin',  soyad:'Yönetici',  email:'admin@fitzone.com', sifre:'admin123',  rol:'admin',    name:'Admin Yönetici'  },
+  { ad:'Ahmet',  soyad:'Yılmaz',    email:'ahmet@mail.com',    sifre:'ahmet123',  rol:'uye',      name:'Ahmet Yılmaz'    },
+  { ad:'Fatma',  soyad:'Kaya',      email:'fatma@mail.com',    sifre:'fatma123',  rol:'uye',      name:'Fatma Kaya'      },
+  { ad:'Can',    soyad:'Öztürk',    email:'can@mail.com',      sifre:'can123456', rol:'uye',      name:'Can Öztürk'      },
+  { ad:'Selin',  soyad:'Arslan',    email:'selin@mail.com',    sifre:'selin123',  rol:'uye',      name:'Selin Arslan'    },
+  { ad:'Emre',   soyad:'Demir',     email:'emre@mail.com',     sifre:'emre12345', rol:'uye',      name:'Emre Demir'      },
+  { ad:'Zeynep', soyad:'Şahin',     email:'zeynep@mail.com',   sifre:'zeynep123', rol:'uye',      name:'Zeynep Şahin'    },
+  { ad:'Murat',  soyad:'Çelik',     email:'murat@mail.com',    sifre:'murat123',  rol:'uye',      name:'Murat Çelik'     },
+  { ad:'Ayşe',   soyad:'Yıldız',    email:'ayse@mail.com',     sifre:'ayse12345', rol:'uye',      name:'Ayşe Yıldız'     },
+  { ad:'Kemal',  soyad:'Antrenör',  email:'kemal@fitzone.com', sifre:'kemal123',  rol:'antrenor', name:'Kemal Antrenör'  },
+  { ad:'Deniz',  soyad:'Koç',       email:'deniz@fitzone.com', sifre:'deniz123',  rol:'antrenor', name:'Deniz Koç'       },
+];
+let registeredUsers = JSON.parse(localStorage.getItem('fitzone_users')) || [...defaultUsers];
 
-function loginAs(role) {
+// Giriş yapan kullanıcı bilgisi
+let activeUser = null;
+
+// Rol etiketleri
+const rolLabels = { admin: 'Süper Admin', uye: 'Üye', antrenor: 'Antrenör' };
+
+function loginAs(role, user) {
   currentRole = role;
-  const profile = roleProfiles[role];
+  activeUser = user || null;
+  if (user) { roleProfiles[role] = { name: user.name, email: user.email, rol: role }; }
+
+  const displayName = user ? user.name : (role === 'admin' ? 'Admin Yönetici' : 'Kullanıcı');
+  const displayRole = rolLabels[role] || role;
+  const initials    = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   // Update sidebar user info
-  document.getElementById('sidebarAvatar').textContent   = profile.initials;
-  document.getElementById('sidebarUserName').textContent  = profile.name;
-  document.getElementById('sidebarUserRole').textContent  = profile.role;
+  document.getElementById('sidebarAvatar').textContent   = initials;
+  document.getElementById('sidebarUserName').textContent  = displayName;
+  document.getElementById('sidebarUserRole').textContent  = displayRole;
 
   // Filter sidebar items by role
   applySidebarRole(role);
@@ -952,13 +1364,13 @@ function loginAs(role) {
   const bg2 = document.getElementById('dashBottomGrid2');
   if (bg2) {
     if (isAdmin)   bg2.style.gridTemplateColumns = '';
-    if (isUye)     bg2.style.gridTemplateColumns = '1fr';
+    if (isUye)     bg2.style.gridTemplateColumns = '1fr 1fr';
     if (isAntrenor) bg2.style.display = 'none';
   }
 
   // Karşılama mesajını kişiye göre güncelle
   const welcomeEl = document.getElementById('dashboardWelcome');
-  if (welcomeEl) welcomeEl.textContent = `Hoş Geldiniz, ${profile.name} 👋`;
+  if (welcomeEl) welcomeEl.textContent = `Hoş Geldiniz, ${displayName} 👋`;
 
   // Hide landing, show panel
   document.getElementById('landing-page').style.display = 'none';
@@ -972,8 +1384,9 @@ function loginAs(role) {
   initApp();
   if (isUye)      { renderUyeWeeklyCalendar(); renderUyeAktiviteChart(); }
   if (isAntrenor) { renderAntrenorWeeklyCalendar(); renderAntrenorKatilimChart(); }
-  showToast(`${profile.role} olarak giriş yapıldı!`);
+  showToast(`${displayRole} olarak giriş yapıldı!`);
 }
+
 
 function applySidebarRole(role) {
   // Nav items
@@ -994,6 +1407,7 @@ function applySidebarRole(role) {
 
 function logout() {
   currentRole = null;
+  activeUser = null;
   // Show landing, hide panel
   document.getElementById('landing-page').style.display = '';
   document.getElementById('app-layout').style.display = 'none';
@@ -1066,98 +1480,45 @@ function renderUyeAktiviteChart() {
   if (uyeAktiviteChartInstance) uyeAktiviteChartInstance.destroy();
 
   // Üyenin bu haftaki aktivite verisi (demo)
-  const gunler     = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-  const gunKisa    = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-  const aktivite   = [60, 0, 45, 60, 50, 0, 30]; // dakika cinsinden
-  const toplam     = aktivite.reduce((a, b) => a + b, 0);
+  const gunler = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const aktivite = [60, 0, 45, 60, 50, 0, 30]; // dakika cinsinden
 
-  // Soft pastel renkler
-  const softColors = [
-    'rgba(167, 139, 250, 0.85)',  // Lavanta
-    'rgba(253, 186, 116, 0.85)',  // Şeftali
-    'rgba(110, 231, 183, 0.85)',  // Nane
-    'rgba(125, 211, 252, 0.85)',  // Gök mavisi
-    'rgba(251, 146, 182, 0.85)',  // Gül
-    'rgba(253, 224, 71, 0.85)',   // Limon
-    'rgba(165, 180, 252, 0.85)',  // Buz moru
-  ];
-  const softBorders = [
-    'rgba(167, 139, 250, 1)',
-    'rgba(253, 186, 116, 1)',
-    'rgba(110, 231, 183, 1)',
-    'rgba(125, 211, 252, 1)',
-    'rgba(251, 146, 182, 1)',
-    'rgba(253, 224, 71, 1)',
-    'rgba(165, 180, 252, 1)',
-  ];
-
-  // 0 dakika olan günleri "Dinlenme" olarak göster, çok küçük dilim ver
-  const chartData   = aktivite.map(v => v > 0 ? v : 2);
-  const chartColors = aktivite.map((v, i) => v > 0 ? softColors[i] : 'rgba(148,163,184,0.15)');
-  const chartBorders = aktivite.map((v, i) => v > 0 ? softBorders[i] : 'rgba(148,163,184,0.25)');
-
-  // Merkez etiketi güncelle
-  const centerLabel = document.getElementById('uyeAktiviteCenterLabel');
-  if (centerLabel) {
-    centerLabel.querySelector('.uye-aktivite-center-value').textContent = toplam;
-    centerLabel.querySelector('.uye-aktivite-center-text').textContent = 'dakika';
-  }
+  const grad = ctx.getContext('2d').createLinearGradient(0, 0, 0, 200);
+  grad.addColorStop(0, 'rgba(139,92,246,0.85)');
+  grad.addColorStop(1, 'rgba(0,212,255,0.6)');
 
   uyeAktiviteChartInstance = new Chart(ctx.getContext('2d'), {
-    type: 'doughnut',
+    type: 'bar',
     data: {
       labels: gunler,
       datasets: [{
-        data: chartData,
-        backgroundColor: chartColors,
-        borderColor: chartBorders,
-        borderWidth: 2,
-        hoverBorderWidth: 3,
-        hoverOffset: 8,
-        spacing: 3,
+        label: 'Aktivite (dk)',
+        data: aktivite,
+        backgroundColor: aktivite.map(v => v > 0 ? grad : 'rgba(148,163,184,0.1)'),
+        borderRadius: 10,
+        borderSkipped: false,
+        barThickness: 28,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '68%',
       plugins: {
         legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15,20,40,0.95)',
           borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
-          titleColor: '#f0f4ff', bodyColor: '#c8d6ff',
-          padding: 12, cornerRadius: 10,
-          titleFont: { size: 13, weight: '600' },
-          bodyFont: { size: 12 },
-          callbacks: {
-            label: function(context) {
-              const val = aktivite[context.dataIndex];
-              return val > 0 ? ` ${val} dakika` : ' Dinlenme günü';
-            }
-          }
+          titleColor: '#f0f4ff', bodyColor: '#94a3b8',
+          padding: 10, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.parsed.y} dakika` }
         }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: 'rgba(200,210,255,0.55)', font: { size: 11 } }, border: { display: false } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(200,210,255,0.5)', font: { size: 11 }, callback: v => v + ' dk' }, border: { display: false }, min: 0, max: 90 }
       }
     }
   });
-
-  // Legend oluştur
-  const legendEl = document.getElementById('uyeAktiviteLegend');
-  if (legendEl) {
-    legendEl.innerHTML = '';
-    gunler.forEach((gun, i) => {
-      const val = aktivite[i];
-      const colorDot = val > 0 ? softColors[i] : 'rgba(148,163,184,0.3)';
-      legendEl.innerHTML += `
-        <div class="uye-aktivite-legend-item">
-          <div class="uye-aktivite-legend-dot" style="background:${colorDot};box-shadow:0 0 8px ${colorDot}"></div>
-          <div class="uye-aktivite-legend-info">
-            <span class="uye-aktivite-legend-day">${gunKisa[i]}</span>
-            <span class="uye-aktivite-legend-val">${val > 0 ? val + ' dk' : 'Dinlenme'}</span>
-          </div>
-        </div>`;
-    });
-  }
 }
 
 // ═══════════════════════════════════════════
